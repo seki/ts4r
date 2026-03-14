@@ -51,6 +51,7 @@ class TupleSpace4Ractor
 
   def initialize
     @ractor = Ractor.new { Impl.new.main_loop }
+    log_init
   end
 
   def take(pattern)
@@ -69,5 +70,52 @@ class TupleSpace4Ractor
     @ractor << [:write, tuple]
     tuple
   end
-end
 
+  def make_loginfo
+    rid = Ractor.current.to_s.scan(/Ractor:#(\d+)/)&.first&.first.to_i
+    loc = caller_locations(2,1).map {|x| [x.path, x.lineno]}.first
+    [rid] + loc
+  end
+
+  def _name; @ractor; end
+
+  def log_init
+    write([_name, :first, 0])
+    write([_name, :last, 0])
+  end
+
+  def log_write(tuple)
+    _, _, last = take([_name, :last, nil])
+    write([_name, :log, last, make_loginfo, Marshal.dump(tuple)])
+    write([_name, :last, last + 1])
+    tuple
+  end
+
+  def log_take
+    _, _, first = take([_name, :first, nil])
+    _, _, _, info, tuple = take([_name, :log, first, nil, nil])
+    write([_name, :first, first + 1])
+    return info, Marshal.load(tuple)
+  end
+
+  def log_read_at(index)
+    _, _, _, info, tuple = read([_name, :log, index, nil, nil])
+    return info, Marshal.load(tuple)
+  end
+
+  def break(any=nil)
+    info = make_loginfo
+    write([_name, :break, info, Marshal.dump(any)])
+    _, _, _, tuple = take([_name, :continue, info, nil])
+    Marshal.load(tuple)
+  end
+
+  def watch_break(info)
+    _, _, info, any = take([_name, :break, info, nil])
+    return info, Marshal.load(any)
+  end
+
+  def continue(info, any=nil)
+    write([_name, :continue, info, Marshal.dump(any)])
+  end
+end

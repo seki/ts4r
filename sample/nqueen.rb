@@ -30,10 +30,11 @@ module NQueen
 end
 
 def invoke_engine(rinda, num)
-  num.times do
-    Ractor.new(rinda) do |ts|
+  num.times do |nth|
+    Ractor.new(rinda, nth) do |ts, n|
       while true
         sym, size, r1, r2 = ts.take([:nq, Integer, Integer, Integer])
+        ts.log_write([r1, r2])
         ts.write([:nq_ans, size, r1, r2, NQueen.nq2(size, r1, r2)])
       end
       ts.write([:nq_engine])
@@ -65,10 +66,18 @@ def resolve(rinda, size)
   take_a(rinda, size)
 end
 
-
 rinda = TupleSpace4Ractor.new
 size = (ARGV.shift || '5').to_i
 
+DRb.start_service('druby://localhost:0', rinda)
+shell = DRbObject.new_with_uri('druby://localhost:8470')
+shell.write([:join, rinda])
+
+pp rinda.break('stop')
+
 invoke_engine(rinda, 8)
 puts resolve(rinda, size)
+
+pp rinda.break('done')
+
 exit!
