@@ -84,12 +84,13 @@ class TupleSpace4Ractor
     write([_name, :last, 0])
   end
 
-  def log_write(tuple)
+  def log_write(any)
     _, _, last = take([_name, :last, nil])
-    write([_name, :log, last, make_loginfo, Marshal.dump(tuple)])
+    write([_name, :log, last, make_loginfo, Marshal.dump(any)])
     write([_name, :last, last + 1])
-    tuple
+    any
   end
+  alias log log_write
 
   def log_take
     _, _, first = take([_name, :first, nil])
@@ -118,4 +119,6 @@ class TupleSpace4Ractor
   def continue(info, any=nil)
     write([_name, :continue, info, Marshal.dump(any)])
   end
+
+  Aether = Ractor.make_shareable(self.new)
 end

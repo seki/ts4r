@@ -30,14 +30,15 @@ module NQueen
 end
 
 def invoke_engine(rinda, num)
-  num.times do |nth|
-    Ractor.new(rinda, nth) do |ts, n|
+  num.times do
+    Ractor.new(rinda) do |ts|
       while true
+        ts.break('nq_loop')
         sym, size, r1, r2 = ts.take([:nq, Integer, Integer, Integer])
-        ts.log_write([r1, r2])
+        ts.log([:nq_begin, r1, r2])
         ts.write([:nq_ans, size, r1, r2, NQueen.nq2(size, r1, r2)])
+        ts.log([:nq_end, r1, r2])
       end
-      ts.write([:nq_engine])
     end
   end
 end
@@ -52,9 +53,10 @@ end
 
 def take_a(rinda, size)
   found = 0
-  size.times do |r1|
-    size.times do |r2|
+  size.times.reverse_each do |r1|
+    size.times.reverse_each do |r2|
       tuple = rinda.take([:nq_ans, size, r1, r2, nil])
+      rinda.log(tuple)
       found += tuple[4]
     end
   end
@@ -66,8 +68,8 @@ def resolve(rinda, size)
   take_a(rinda, size)
 end
 
-rinda = TupleSpace4Ractor.new
-size = (ARGV.shift || '5').to_i
+rinda = TupleSpace4Ractor::Aether
+size = (ARGV.shift || '14').to_i
 
 DRb.start_service('druby://localhost:0', rinda)
 shell = DRbObject.new_with_uri('druby://localhost:8470')
@@ -77,6 +79,9 @@ pp rinda.break('stop')
 
 invoke_engine(rinda, 8)
 puts resolve(rinda, size)
+rinda.log([:done])
+
+# puts resolve(rinda, size)
 
 pp rinda.break('done')
 
